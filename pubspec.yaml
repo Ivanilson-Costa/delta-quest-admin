@@ -20,3 +20,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/templates/modelo_questionario.xlsx
+    - assets/images/logo_delta_quest.png
+

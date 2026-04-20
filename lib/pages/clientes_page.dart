@@ -60,8 +60,8 @@ class _ClientesPageState extends State<ClientesPage> {
         loading = false;
       });
     } catch (e, s) {
-      print('ERRO AO CARREGAR CLIENTES PAGE: $e');
-      print(s);
+      debugPrint('ERRO AO CARREGAR CLIENTES PAGE: $e');
+      debugPrintStack(stackTrace: s);
 
       if (!mounted) return;
 
@@ -87,10 +87,15 @@ class _ClientesPageState extends State<ClientesPage> {
       final responsavel =
           (c['responsavel_nome'] ?? '').toString().toLowerCase();
 
+      final statusCliente = (c['status'] ?? '').toString().toLowerCase();
+      final statusPesquisa = _textoResumoStatusPesquisa(c).toLowerCase();
+
       return nome.contains(query) ||
           email.contains(query) ||
           plano.contains(query) ||
-          responsavel.contains(query);
+          responsavel.contains(query) ||
+          statusCliente.contains(query) ||
+          statusPesquisa.contains(query);
     }).toList();
   }
 
@@ -116,6 +121,195 @@ class _ClientesPageState extends State<ClientesPage> {
     );
 
     await carregarTudo();
+  }
+
+  int _toInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    return int.tryParse(value.toString()) ?? 0;
+  }
+
+  int get totalClientes => clientes.length;
+
+  int get totalClientesAtivos =>
+      clientes.where((c) => (c['status'] ?? '').toString() == 'ativo').length;
+
+  int get totalClientesInativosOuBloqueados => clientes
+      .where((c) => (c['status'] ?? '').toString() != 'ativo')
+      .length;
+
+  int get totalClientesComPesquisaAtiva => clientes
+      .where((c) => _toInt(c['pesquisas_ativas']) > 0)
+      .length;
+
+  String _textoResumoStatusPesquisa(Map<String, dynamic> cliente) {
+    final total = _toInt(cliente['total_pesquisas']);
+    final ativas = _toInt(cliente['pesquisas_ativas']);
+    final concluidas = _toInt(cliente['pesquisas_concluidas']);
+    final pausadas = _toInt(cliente['pesquisas_pausadas']);
+    final canceladas = _toInt(cliente['pesquisas_canceladas']);
+
+    if (total == 0) return 'Sem pesquisas';
+    if (ativas > 0 && concluidas == 0 && pausadas == 0 && canceladas == 0) {
+      return 'Ativa';
+    }
+    if (ativas > 0) return 'Mista';
+    if (pausadas > 0 && concluidas == 0 && canceladas == 0) {
+      return 'Pausada';
+    }
+    if (canceladas > 0 && concluidas == 0 && pausadas == 0) {
+      return 'Cancelada';
+    }
+    if (concluidas > 0 && ativas == 0 && pausadas == 0 && canceladas == 0) {
+      return 'Concluída';
+    }
+    return 'Mista';
+  }
+
+  Widget _buildClienteStatusChip(String status) {
+    Color bg;
+    Color fg;
+    String label;
+
+    switch (status) {
+      case 'ativo':
+        bg = const Color(0xFFD1FAE5);
+        fg = const Color(0xFF065F46);
+        label = 'Ativo';
+        break;
+      case 'bloqueado':
+        bg = const Color(0xFFFEE2E2);
+        fg = const Color(0xFF991B1B);
+        label = 'Bloqueado';
+        break;
+      default:
+        bg = const Color(0xFFE5E7EB);
+        fg = const Color(0xFF374151);
+        label = 'Inativo';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: fg,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPesquisaStatusChip(Map<String, dynamic> cliente) {
+    final resumo = _textoResumoStatusPesquisa(cliente);
+
+    Color bg;
+    Color fg;
+
+    switch (resumo) {
+      case 'Ativa':
+        bg = const Color(0xFFDBEAFE);
+        fg = const Color(0xFF1D4ED8);
+        break;
+      case 'Concluída':
+        bg = const Color(0xFFD1FAE5);
+        fg = const Color(0xFF065F46);
+        break;
+      case 'Pausada':
+        bg = const Color(0xFFF3E8FF);
+        fg = const Color(0xFF7E22CE);
+        break;
+      case 'Cancelada':
+        bg = const Color(0xFFFEE2E2);
+        fg = const Color(0xFF991B1B);
+        break;
+      case 'Sem pesquisas':
+        bg = const Color(0xFFF3F4F6);
+        fg = const Color(0xFF4B5563);
+        break;
+      default:
+        bg = const Color(0xFFFEF3C7);
+        fg = const Color(0xFFB45309);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        resumo,
+        style: TextStyle(
+          color: fg,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResumoCard({
+    required String titulo,
+    required String valor,
+    required IconData icone,
+  }) {
+    return Container(
+      width: 240,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 14,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              icone,
+              color: const Color(0xFF2563EB),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                titulo,
+                style: const TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                valor,
+                style: const TextStyle(
+                  color: Color(0xFF111827),
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -145,11 +339,38 @@ class _ClientesPageState extends State<ClientesPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Total de clientes: ${clientes.length}',
+                  'Total de clientes: $totalClientes',
                   style: const TextStyle(
                     fontSize: 15,
                     color: Color(0xFF6B7280),
                   ),
+                ),
+                const SizedBox(height: 24),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: [
+                    _buildResumoCard(
+                      titulo: 'Total',
+                      valor: totalClientes.toString(),
+                      icone: Icons.business_rounded,
+                    ),
+                    _buildResumoCard(
+                      titulo: 'Ativos',
+                      valor: totalClientesAtivos.toString(),
+                      icone: Icons.verified_user_outlined,
+                    ),
+                    _buildResumoCard(
+                      titulo: 'Inativos/Bloqueados',
+                      valor: totalClientesInativosOuBloqueados.toString(),
+                      icone: Icons.block_outlined,
+                    ),
+                    _buildResumoCard(
+                      titulo: 'Com pesquisa ativa',
+                      valor: totalClientesComPesquisaAtiva.toString(),
+                      icone: Icons.assignment_turned_in_outlined,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 Container(
@@ -176,7 +397,7 @@ class _ClientesPageState extends State<ClientesPage> {
                               onChanged: (_) => setState(() {}),
                               decoration: InputDecoration(
                                 hintText:
-                                    'Buscar por nome, e-mail, plano ou responsável',
+                                    'Buscar por nome, e-mail, plano, responsável ou status',
                                 prefixIcon: const Icon(Icons.search),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -215,14 +436,17 @@ class _ClientesPageState extends State<ClientesPage> {
                               DataColumn(label: Text('Nome')),
                               DataColumn(label: Text('Responsável')),
                               DataColumn(label: Text('E-mail')),
-                              DataColumn(label: Text('Telefone')),
                               DataColumn(label: Text('Plano')),
-                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Status cliente')),
+                              DataColumn(label: Text('Status pesquisas')),
+                              DataColumn(label: Text('Qtd pesquisas')),
                               DataColumn(label: Text('Ações')),
                             ],
                             rows: clientesFiltrados.map((cliente) {
                               final status =
                                   (cliente['status'] ?? 'ativo').toString();
+                              final totalPesquisas =
+                                  _toInt(cliente['total_pesquisas']);
 
                               return DataRow(
                                 cells: [
@@ -239,34 +463,11 @@ class _ClientesPageState extends State<ClientesPage> {
                                     Text((cliente['email'] ?? '').toString()),
                                   ),
                                   DataCell(
-                                    Text((cliente['telefone'] ?? '').toString()),
-                                  ),
-                                  DataCell(
                                     Text((cliente['plano'] ?? '').toString()),
                                   ),
-                                  DataCell(
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: status == 'ativo'
-                                            ? const Color(0xFFD1FAE5)
-                                            : const Color(0xFFFEE2E2),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        status,
-                                        style: TextStyle(
-                                          color: status == 'ativo'
-                                              ? const Color(0xFF065F46)
-                                              : const Color(0xFF991B1B),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                  DataCell(_buildClienteStatusChip(status)),
+                                  DataCell(_buildPesquisaStatusChip(cliente)),
+                                  DataCell(Text(totalPesquisas.toString())),
                                   DataCell(
                                     Row(
                                       children: [
