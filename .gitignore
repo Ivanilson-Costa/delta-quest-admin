@@ -1,0 +1,28 @@
+# Flutter
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Android
+android/.gradle/
+android/app/build/
+
+# iOS
+ios/Pods/
+ios/Runner.xcworkspace/
+
+# Web
+build/web/
+
+# VS Code
+.vscode/
+
+# Sistema
+.DS_Store
+
+# Logs
+*.log
+
+# Env (futuro)
+.env

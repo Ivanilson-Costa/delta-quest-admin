@@ -1,0 +1,735 @@
+import 'package:flutter/material.dart';
+
+import '../services/client_access_service.dart';
+import '../services/clientes_service.dart';
+import '../services/profile_service.dart';
+import '../widgets/admin_shell.dart';
+
+class ClientesPage extends StatefulWidget {
+  const ClientesPage({super.key});
+
+  @override
+  State<ClientesPage> createState() => _ClientesPageState();
+}
+
+class _ClientesPageState extends State<ClientesPage> {
+  final ClientesService _clientesService = ClientesService();
+  final ProfileService _profileService = ProfileService();
+  final TextEditingController _searchController = TextEditingController();
+
+  Map<String, dynamic>? profile;
+  List<Map<String, dynamic>> clientes = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    carregarTudo();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> abrirCriarAcesso(Map<String, dynamic> cliente) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => CriarAcessoClienteDialog(cliente: cliente),
+    );
+  }
+
+  Future<void> carregarTudo() async {
+    setState(() => loading = true);
+
+    try {
+      final perfil = await _profileService.getProfile();
+
+      if (!mounted) return;
+      setState(() {
+        profile = perfil;
+      });
+
+      final lista = await _clientesService.listarClientes();
+
+      if (!mounted) return;
+      setState(() {
+        clientes = lista;
+        loading = false;
+      });
+    } catch (e, s) {
+      print('ERRO AO CARREGAR CLIENTES PAGE: $e');
+      print(s);
+
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar clientes: $e')),
+      );
+    }
+  }
+
+  List<Map<String, dynamic>> get clientesFiltrados {
+    final query = _searchController.text.trim().toLowerCase();
+
+    if (query.isEmpty) return clientes;
+
+    return clientes.where((c) {
+      final nome = (c['nome'] ?? '').toString().toLowerCase();
+      final email = (c['email'] ?? '').toString().toLowerCase();
+      final plano = (c['plano'] ?? '').toString().toLowerCase();
+      final responsavel =
+          (c['responsavel_nome'] ?? '').toString().toLowerCase();
+
+      return nome.contains(query) ||
+          email.contains(query) ||
+          plano.contains(query) ||
+          responsavel.contains(query);
+    }).toList();
+  }
+
+  Future<void> abrirFormulario({Map<String, dynamic>? cliente}) async {
+    final salvou = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ClienteFormDialog(cliente: cliente),
+    );
+
+    if (salvou == true) {
+      await carregarTudo();
+    }
+  }
+
+  Future<void> trocarStatus(Map<String, dynamic> cliente) async {
+    final statusAtual = (cliente['status'] ?? 'ativo').toString();
+    final novoStatus = statusAtual == 'ativo' ? 'inativo' : 'ativo';
+
+    await _clientesService.alterarStatus(
+      id: cliente['id'].toString(),
+      status: novoStatus,
+    );
+
+    await carregarTudo();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nome = (profile?['nome'] ?? 'Usuário').toString();
+    final tipo = (profile?['tipo'] ?? 'Sem perfil').toString();
+
+    return AdminShell(
+      title: 'Clientes',
+      userName: nome,
+      userType: tipo,
+      selectedIndex: 2,
+      child: loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Gestão de clientes',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Total de clientes: ${clientes.length}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 16,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                hintText:
+                                    'Buscar por nome, e-mail, plano ou responsável',
+                                prefixIcon: const Icon(Icons.search),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: () => abrirFormulario(),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Novo cliente'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: carregarTudo,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Atualizar'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      if (clientesFiltrados.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Text('Nenhum cliente encontrado.'),
+                        )
+                      else
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              const Color(0xFFF3F4F6),
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('Nome')),
+                              DataColumn(label: Text('Responsável')),
+                              DataColumn(label: Text('E-mail')),
+                              DataColumn(label: Text('Telefone')),
+                              DataColumn(label: Text('Plano')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Ações')),
+                            ],
+                            rows: clientesFiltrados.map((cliente) {
+                              final status =
+                                  (cliente['status'] ?? 'ativo').toString();
+
+                              return DataRow(
+                                cells: [
+                                  DataCell(
+                                    Text((cliente['nome'] ?? '').toString()),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      (cliente['responsavel_nome'] ?? '')
+                                          .toString(),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text((cliente['email'] ?? '').toString()),
+                                  ),
+                                  DataCell(
+                                    Text((cliente['telefone'] ?? '').toString()),
+                                  ),
+                                  DataCell(
+                                    Text((cliente['plano'] ?? '').toString()),
+                                  ),
+                                  DataCell(
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: status == 'ativo'
+                                            ? const Color(0xFFD1FAE5)
+                                            : const Color(0xFFFEE2E2),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        status,
+                                        style: TextStyle(
+                                          color: status == 'ativo'
+                                              ? const Color(0xFF065F46)
+                                              : const Color(0xFF991B1B),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Criar acesso',
+                                          onPressed: () =>
+                                              abrirCriarAcesso(cliente),
+                                          icon: const Icon(
+                                            Icons.person_add_alt_1_outlined,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Editar',
+                                          onPressed: () =>
+                                              abrirFormulario(cliente: cliente),
+                                          icon: const Icon(Icons.edit_outlined),
+                                        ),
+                                        IconButton(
+                                          tooltip: status == 'ativo'
+                                              ? 'Inativar'
+                                              : 'Ativar',
+                                          onPressed: () =>
+                                              trocarStatus(cliente),
+                                          icon: Icon(
+                                            status == 'ativo'
+                                                ? Icons.toggle_off_outlined
+                                                : Icons.toggle_on_outlined,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class CriarAcessoClienteDialog extends StatefulWidget {
+  final Map<String, dynamic> cliente;
+
+  const CriarAcessoClienteDialog({
+    super.key,
+    required this.cliente,
+  });
+
+  @override
+  State<CriarAcessoClienteDialog> createState() =>
+      _CriarAcessoClienteDialogState();
+}
+
+class _CriarAcessoClienteDialogState
+    extends State<CriarAcessoClienteDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _service = ClientAccessService();
+
+  final nomeController = TextEditingController();
+  final emailController = TextEditingController();
+  final senhaController = TextEditingController();
+
+  bool salvando = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    nomeController.text =
+        widget.cliente['responsavel_nome']?.toString() ?? '';
+    emailController.text = widget.cliente['email']?.toString() ?? '';
+  }
+
+  @override
+  void dispose() {
+    nomeController.dispose();
+    emailController.dispose();
+    senhaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> salvar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => salvando = true);
+
+    try {
+      await _service.criarAcessoCliente(
+        clienteId: widget.cliente['id'].toString(),
+        nome: nomeController.text.trim(),
+        email: emailController.text.trim(),
+        password: senhaController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Acesso criado com sucesso')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao criar acesso: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => salvando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Criar acesso do cliente',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cliente: ${widget.cliente['nome'] ?? ''}',
+                  style: const TextStyle(color: Colors.black54),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: nomeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nome do usuário',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Informe o nome' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'E-mail',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Informe o e-mail';
+                    if (!v.contains('@')) return 'E-mail inválido';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: senhaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Senha temporária',
+                    border: OutlineInputBorder(),
+                  ),
+                  obscureText: true,
+                  validator: (v) =>
+                      v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed:
+                          salvando ? null : () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: salvando ? null : salvar,
+                      child: salvando
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Criar acesso'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ClienteFormDialog extends StatefulWidget {
+  final Map<String, dynamic>? cliente;
+
+  const ClienteFormDialog({
+    super.key,
+    this.cliente,
+  });
+
+  @override
+  State<ClienteFormDialog> createState() => _ClienteFormDialogState();
+}
+
+class _ClienteFormDialogState extends State<ClienteFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _service = ClientesService();
+
+  late final TextEditingController nomeController;
+  late final TextEditingController planoController;
+  late final TextEditingController emailController;
+  late final TextEditingController telefoneController;
+  late final TextEditingController responsavelController;
+  late final TextEditingController observacoesController;
+
+  String status = 'ativo';
+  bool salvando = false;
+
+  bool get editando => widget.cliente != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    nomeController =
+        TextEditingController(text: widget.cliente?['nome']?.toString() ?? '');
+    planoController =
+        TextEditingController(text: widget.cliente?['plano']?.toString() ?? '');
+    emailController =
+        TextEditingController(text: widget.cliente?['email']?.toString() ?? '');
+    telefoneController = TextEditingController(
+      text: widget.cliente?['telefone']?.toString() ?? '',
+    );
+    responsavelController = TextEditingController(
+      text: widget.cliente?['responsavel_nome']?.toString() ?? '',
+    );
+    observacoesController = TextEditingController(
+      text: widget.cliente?['observacoes']?.toString() ?? '',
+    );
+
+    status = widget.cliente?['status']?.toString() ?? 'ativo';
+  }
+
+  @override
+  void dispose() {
+    nomeController.dispose();
+    planoController.dispose();
+    emailController.dispose();
+    telefoneController.dispose();
+    responsavelController.dispose();
+    observacoesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> salvar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => salvando = true);
+
+    try {
+      if (editando) {
+        await _service.atualizarCliente(
+          id: widget.cliente!['id'].toString(),
+          nome: nomeController.text,
+          plano: planoController.text,
+          email: emailController.text,
+          telefone: telefoneController.text,
+          responsavelNome: responsavelController.text,
+          status: status,
+          observacoes: observacoesController.text,
+        );
+      } else {
+        await _service.criarCliente(
+          nome: nomeController.text,
+          plano: planoController.text,
+          email: emailController.text,
+          telefone: telefoneController.text,
+          responsavelNome: responsavelController.text,
+          status: status,
+          observacoes: observacoesController.text,
+        );
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao salvar cliente: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => salvando = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    editando ? 'Editar cliente' : 'Novo cliente',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: nomeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome do cliente',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Informe o nome do cliente';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: responsavelController,
+                          decoration: const InputDecoration(
+                            labelText: 'Responsável',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: planoController,
+                          decoration: const InputDecoration(
+                            labelText: 'Plano',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: emailController,
+                          decoration: const InputDecoration(
+                            labelText: 'E-mail',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: telefoneController,
+                          decoration: const InputDecoration(
+                            labelText: 'Telefone',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: status,
+                    decoration: const InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'ativo',
+                        child: Text('Ativo'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'inativo',
+                        child: Text('Inativo'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'bloqueado',
+                        child: Text('Bloqueado'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        status = value ?? 'ativo';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: observacoesController,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Observações',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: salvando
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        child: const Text('Cancelar'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: salvando ? null : salvar,
+                        child: salvando
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Salvar'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
