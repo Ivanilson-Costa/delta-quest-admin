@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../services/questionarios_service.dart';
 import '../services/pesquisas_service.dart';
@@ -63,6 +65,88 @@ class _QuestionariosPageState extends State<QuestionariosPage>
         SnackBar(content: Text('Erro ao carregar questionários: $e')),
       );
     }
+  }
+
+  Future<void> exportarPDF(Map<String, dynamic> questionario) async {
+    final pdf = pw.Document();
+
+    final titulo = (questionario['titulo'] ?? '').toString();
+    final subtitulo = (questionario['subtitulo'] ?? '').toString();
+    final descricao = (questionario['descricao'] ?? '').toString();
+    final statusQuestionario = (questionario['status'] ?? '').toString();
+    final pesquisaTitulo = _tituloPesquisa(questionario);
+    final statusPesquisa = _statusPesquisa(questionario);
+    final dataInicio = formatarData(questionario['pesquisas']?['data_inicio']);
+    final dataFim = formatarData(questionario['pesquisas']?['data_fim']);
+    final perguntasCount = (questionario['perguntas_count'] ?? 0).toString();
+    final dataEmissao = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+
+    pdf.addPage(
+      pw.MultiPage(
+        build: (context) => [
+          pw.Text(
+            'DELTA QUEST IT',
+            style: pw.TextStyle(
+              fontSize: 24,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Text(
+            'Instrumento de Pesquisa / Questionário',
+            style: pw.TextStyle(
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 18),
+          pw.Divider(),
+          pw.SizedBox(height: 12),
+          pw.Text('Questionário: $titulo'),
+          if (subtitulo.isNotEmpty) pw.Text('Subtítulo: $subtitulo'),
+          if (descricao.isNotEmpty) pw.Text('Descrição: $descricao'),
+          pw.Text('Pesquisa: $pesquisaTitulo'),
+          pw.Text('Status do questionário: ${formatarStatusQuestionario(statusQuestionario)}'),
+          pw.Text('Status da pesquisa: $statusPesquisa'),
+          pw.Text('Início da pesquisa: $dataInicio'),
+          pw.Text('Fim da pesquisa: $dataFim'),
+          pw.Text('Quantidade de perguntas: $perguntasCount'),
+          pw.Text('Data de emissão: $dataEmissao'),
+          pw.SizedBox(height: 20),
+          pw.Divider(),
+          pw.SizedBox(height: 12),
+          pw.Text(
+            'Observação',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.Text(
+            'Este documento representa o cadastro do questionário no sistema Delta Quest IT. '
+            'A próxima etapa poderá incluir a exportação detalhada dos blocos, perguntas, opções e regras de pulo.',
+          ),
+          pw.SizedBox(height: 30),
+          pw.Divider(),
+          pw.Text(
+            'Gerado automaticamente pelo sistema Delta Quest IT.',
+            style: const pw.TextStyle(fontSize: 10),
+          ),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdf.save(),
+    );
+  }
+
+  Future<void> exportarDOCX(Map<String, dynamic> questionario) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Exportação DOCX será implementada na próxima etapa.'),
+      ),
+    );
   }
 
   Future<void> abrirFormulario({Map<String, dynamic>? questionario}) async {
@@ -416,6 +500,39 @@ class _QuestionariosPageState extends State<QuestionariosPage>
                         );
                       },
                       icon: const Icon(Icons.open_in_new_outlined),
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Exportar',
+                      icon: const Icon(Icons.download_outlined),
+                      onSelected: (value) {
+                        if (value == 'pdf') {
+                          exportarPDF(q);
+                        } else if (value == 'docx') {
+                          exportarDOCX(q);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'pdf',
+                          child: Row(
+                            children: [
+                              Icon(Icons.picture_as_pdf_outlined, size: 18),
+                              SizedBox(width: 8),
+                              Text('Exportar PDF'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'docx',
+                          child: Row(
+                            children: [
+                              Icon(Icons.description_outlined, size: 18),
+                              SizedBox(width: 8),
+                              Text('Exportar DOCX'),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                     IconButton(
                       tooltip: 'Editar',

@@ -15,6 +15,8 @@ dependencies:
   excel: ^2.1.0
   cupertino_icons: ^1.0.6  
   universal_html: ^2.2.4
+  pdf: ^3.12.0
+  printing: ^5.14.3
 
 flutter:
   uses-material-design: true
