@@ -9,7 +9,9 @@ class QuestionariosService {
         .select('''
           id,
           titulo,
+          subtitulo,
           descricao,
+          status,
           pesquisa_id,
           created_at,
           updated_at,
@@ -59,12 +61,16 @@ class QuestionariosService {
   Future<void> criar({
     required String pesquisaId,
     required String titulo,
+    String? subtitulo,
     String? descricao,
+    String status = 'rascunho',
   }) async {
     await client.from('questionarios').insert({
       'pesquisa_id': pesquisaId,
       'titulo': titulo.trim(),
+      'subtitulo': _nullSeVazio(subtitulo),
       'descricao': _nullSeVazio(descricao),
+      'status': status,
     });
   }
 
@@ -72,12 +78,16 @@ class QuestionariosService {
     required String id,
     required String pesquisaId,
     required String titulo,
+    String? subtitulo,
     String? descricao,
+    String status = 'rascunho',
   }) async {
     await client.from('questionarios').update({
       'pesquisa_id': pesquisaId,
       'titulo': titulo.trim(),
+      'subtitulo': _nullSeVazio(subtitulo),
       'descricao': _nullSeVazio(descricao),
+      'status': status,
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', id);
   }

@@ -16,170 +16,10 @@ class _UsuariosPageState extends State<UsuariosPage> {
   final _profileService = ProfileService();
   final _searchController = TextEditingController();
 
-
-Future<void> novoUsuario() async {
-  final nomeController = TextEditingController();
-  final emailController = TextEditingController();
-  final senhaController = TextEditingController();
-
-  String tipo = 'colaborador';
-  bool salvando = false;
-
-  await showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setModalState) {
-          Future<void> salvar() async {
-            final nome = nomeController.text.trim();
-            final email = emailController.text.trim();
-            final senha = senhaController.text.trim();
-
-            if (nome.isEmpty || email.isEmpty || senha.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Preencha nome, e-mail e senha.'),
-                ),
-              );
-              return;
-            }
-
-            setModalState(() => salvando = true);
-
-            try {
-              final response = await supabase.functions.invoke(
-                'hyper-function',
-                body: {
-                  'nome': nome,
-                  'email': email,
-                  'password': senha,
-                  'tipo': tipo,
-                },
-              );
-
-              final data = response.data;
-
-              if (data is Map && data['error'] != null) {
-                throw Exception(data['error']);
-              }
-
-              if (context.mounted) {
-                Navigator.pop(context);
-              }
-
-              await carregarTudo();
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Usuário criado com sucesso.'),
-                  ),
-                );
-              }
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Erro ao criar usuário: $e')),
-                );
-              }
-            } finally {
-              setModalState(() => salvando = false);
-            }
-          }
-
-          return AlertDialog(
-            title: const Text('Novo usuário'),
-            content: SizedBox(
-              width: 460,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nomeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'E-mail',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: senhaController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Senha temporária',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
-                    value: tipo,
-                    decoration: const InputDecoration(
-                      labelText: 'Tipo',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'admin',
-                        child: Text('Admin'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'cliente',
-                        child: Text('Cliente'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'colaborador',
-                        child: Text('Colaborador'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setModalState(() => tipo = value);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: salvando ? null : () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: salvando ? null : salvar,
-                child: salvando
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Criar usuário'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-
-  nomeController.dispose();
-  emailController.dispose();
-  senhaController.dispose();
-}
-
-
   bool loading = true;
   Map<String, dynamic>? profile;
   List<Map<String, dynamic>> usuarios = [];
+  List<Map<String, dynamic>> clientes = [];
 
   String abaSelecionada = 'todos';
 
@@ -201,17 +41,41 @@ Future<void> novoUsuario() async {
     try {
       final perfil = await _profileService.getProfile();
 
-      final data = await supabase
+      final dataUsuarios = await supabase
           .from('profiles')
-          .select('id, nome, tipo, ativo, created_at')
+          .select('''
+            id,
+            nome,
+            email,
+            tipo,
+            cpf,
+            telefone_1,
+            telefone_2,
+            cep,
+            endereco,
+            numero,
+            complemento,
+            bairro,
+            cidade,
+            uf,
+            ativo,
+            created_at,
+            deleted_at
+          ''')
           .isFilter('deleted_at', null)
           .order('created_at', ascending: false);
+
+      final dataClientes = await supabase
+          .from('clientes')
+          .select('id, nome, razao_social, nome_fantasia, status')
+          .order('nome');
 
       if (!mounted) return;
 
       setState(() {
         profile = perfil;
-        usuarios = List<Map<String, dynamic>>.from(data);
+        usuarios = List<Map<String, dynamic>>.from(dataUsuarios);
+        clientes = List<Map<String, dynamic>>.from(dataClientes);
         loading = false;
       });
     } catch (e) {
@@ -230,10 +94,24 @@ Future<void> novoUsuario() async {
 
     return usuarios.where((u) {
       final nome = (u['nome'] ?? '').toString().toLowerCase();
+      final email = (u['email'] ?? '').toString().toLowerCase();
+      final cpf = (u['cpf'] ?? '').toString().toLowerCase();
+      final telefone1 = (u['telefone_1'] ?? '').toString().toLowerCase();
+      final telefone2 = (u['telefone_2'] ?? '').toString().toLowerCase();
+      final cidade = (u['cidade'] ?? '').toString().toLowerCase();
+      final uf = (u['uf'] ?? '').toString().toLowerCase();
+
       final tipo = (u['tipo'] ?? '').toString();
       final ativo = u['ativo'] == true;
 
-      final bateBusca = busca.isEmpty || nome.contains(busca);
+      final bateBusca = busca.isEmpty ||
+          nome.contains(busca) ||
+          email.contains(busca) ||
+          cpf.contains(busca) ||
+          telefone1.contains(busca) ||
+          telefone2.contains(busca) ||
+          cidade.contains(busca) ||
+          uf.contains(busca);
 
       final bateAba = switch (abaSelecionada) {
         'admins' => tipo == 'admin',
@@ -254,98 +132,190 @@ Future<void> novoUsuario() async {
       usuarios.where((u) => u['tipo'] == 'colaborador').length;
   int get totalInativos => usuarios.where((u) => u['ativo'] == false).length;
 
-  Future<void> editarUsuario(Map<String, dynamic> usuario) async {
-    final nomeController = TextEditingController(
-      text: usuario['nome']?.toString() ?? '',
-    );
+  String cidadeUf(Map<String, dynamic> usuario) {
+    final cidade = (usuario['cidade'] ?? '').toString();
+    final uf = (usuario['uf'] ?? '').toString();
 
-    String tipo = usuario['tipo']?.toString() ?? 'colaborador';
-    bool ativo = usuario['ativo'] == true;
+    if (cidade.isEmpty && uf.isEmpty) return '-';
+    return '$cidade${uf.isNotEmpty ? '/$uf' : ''}';
+  }
 
-    await showDialog(
+  String telefonePrincipal(Map<String, dynamic> usuario) {
+    final t1 = (usuario['telefone_1'] ?? '').toString();
+    final t2 = (usuario['telefone_2'] ?? '').toString();
+
+    if (t1.isNotEmpty) return t1;
+    if (t2.isNotEmpty) return t2;
+    return '-';
+  }
+
+  Future<String?> buscarClienteVinculado(String userId) async {
+    final vinculo = await supabase
+        .from('usuarios_clientes')
+        .select('cliente_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (vinculo == null) return null;
+    return vinculo['cliente_id']?.toString();
+  }
+
+  Future<void> salvarVinculoCliente({
+    required String userId,
+    required String? clienteId,
+  }) async {
+    await supabase.from('usuarios_clientes').delete().eq('user_id', userId);
+
+    if (clienteId == null || clienteId.isEmpty) return;
+
+    await supabase.from('usuarios_clientes').insert({
+      'user_id': userId,
+      'cliente_id': clienteId,
+      'role': 'cliente',
+      'status': 'ativo',
+    });
+  }
+
+  Future<void> novoUsuario() async {
+    await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Editar usuário'),
-          content: StatefulBuilder(
-            builder: (context, setModalState) {
-              return SizedBox(
-                width: 420,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nomeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nome',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: tipo,
-                      decoration: const InputDecoration(
-                        labelText: 'Tipo',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                        DropdownMenuItem(
-                          value: 'cliente',
-                          child: Text('Cliente'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'colaborador',
-                          child: Text('Colaborador'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setModalState(() => tipo = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Usuário ativo'),
-                      value: ativo,
-                      onChanged: (value) {
-                        setModalState(() => ativo = value);
-                      },
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await supabase.from('profiles').update({
-                  'nome': nomeController.text.trim(),
-                  'tipo': tipo,
-                  'ativo': ativo,
-                }).eq('id', usuario['id']);
+      barrierDismissible: false,
+      builder: (_) => UsuarioFormDialog(
+        clientes: clientes,
+        onSalvar: ({
+          required nome,
+          required email,
+          required tipo,
+          required ativo,
+          required cpf,
+          required telefone1,
+          required telefone2,
+          required cep,
+          required endereco,
+          required numero,
+          required complemento,
+          required bairro,
+          required cidade,
+          required uf,
+          required password,
+          required clienteId,
+        }) async {
+          if (password == null || password.trim().isEmpty) {
+            throw Exception('Informe a senha temporária.');
+          }
 
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
+          final body = <String, dynamic>{
+            'nome': nome,
+            'email': email,
+            'password': password,
+            'tipo': tipo,
+            if (tipo == 'cliente') 'cliente_id': clienteId,
+          };
 
-                await carregarTudo();
-              },
-              child: const Text('Salvar'),
-            ),
-          ],
-        );
-      },
+          final response = await supabase.functions.invoke(
+            'hyper-function',
+            body: body,
+          );
+
+          final data = response.data;
+
+          if (data is Map && data['error'] != null) {
+            throw Exception(data['error']);
+          }
+
+          final userId = (data is Map ? data['user_id'] : null)?.toString();
+
+          if (userId != null && userId.isNotEmpty) {
+            await supabase.from('profiles').update({
+              'cpf': _nullSeVazio(cpf),
+              'telefone_1': _nullSeVazio(telefone1),
+              'telefone_2': _nullSeVazio(telefone2),
+              'cep': _nullSeVazio(cep),
+              'endereco': _nullSeVazio(endereco),
+              'numero': _nullSeVazio(numero),
+              'complemento': _nullSeVazio(complemento),
+              'bairro': _nullSeVazio(bairro),
+              'cidade': _nullSeVazio(cidade),
+              'uf': _nullSeVazio(uf.toUpperCase()),
+              'ativo': ativo,
+              'updated_at': DateTime.now().toIso8601String(),
+            }).eq('id', userId);
+          }
+
+          await carregarTudo();
+        },
+      ),
     );
+  }
 
-    nomeController.dispose();
+  Future<void> editarUsuario(Map<String, dynamic> usuario) async {
+    final clienteVinculado = usuario['tipo'] == 'cliente'
+        ? await buscarClienteVinculado(usuario['id'].toString())
+        : null;
+
+    if (!mounted) return;
+
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => UsuarioFormDialog(
+        usuario: usuario,
+        clientes: clientes,
+        clienteVinculadoId: clienteVinculado,
+        onSalvar: ({
+          required nome,
+          required email,
+          required tipo,
+          required ativo,
+          required cpf,
+          required telefone1,
+          required telefone2,
+          required cep,
+          required endereco,
+          required numero,
+          required complemento,
+          required bairro,
+          required cidade,
+          required uf,
+          required password,
+          required clienteId,
+        }) async {
+          final userId = usuario['id'].toString();
+
+          await supabase.from('profiles').update({
+            'nome': nome.trim(),
+            'email': _nullSeVazio(email),
+            'tipo': tipo,
+            'cpf': _nullSeVazio(cpf),
+            'telefone_1': _nullSeVazio(telefone1),
+            'telefone_2': _nullSeVazio(telefone2),
+            'cep': _nullSeVazio(cep),
+            'endereco': _nullSeVazio(endereco),
+            'numero': _nullSeVazio(numero),
+            'complemento': _nullSeVazio(complemento),
+            'bairro': _nullSeVazio(bairro),
+            'cidade': _nullSeVazio(cidade),
+            'uf': _nullSeVazio(uf.toUpperCase()),
+            'ativo': ativo,
+            'updated_at': DateTime.now().toIso8601String(),
+          }).eq('id', userId);
+
+          if (tipo == 'cliente') {
+            await salvarVinculoCliente(
+              userId: userId,
+              clienteId: clienteId,
+            );
+          } else {
+            await salvarVinculoCliente(
+              userId: userId,
+              clienteId: null,
+            );
+          }
+
+          await carregarTudo();
+        },
+      ),
+    );
   }
 
   Future<void> alternarStatus(Map<String, dynamic> usuario) async {
@@ -353,6 +323,7 @@ Future<void> novoUsuario() async {
 
     await supabase.from('profiles').update({
       'ativo': !ativoAtual,
+      'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', usuario['id']);
 
     await carregarTudo();
@@ -385,9 +356,16 @@ Future<void> novoUsuario() async {
     await supabase.from('profiles').update({
       'deleted_at': DateTime.now().toIso8601String(),
       'ativo': false,
+      'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', usuario['id']);
 
     await carregarTudo();
+  }
+
+  String? _nullSeVazio(String? valor) {
+    if (valor == null) return null;
+    final texto = valor.trim();
+    return texto.isEmpty ? null : texto;
   }
 
   @override
@@ -458,7 +436,7 @@ Future<void> novoUsuario() async {
                               ),
                             ),
                           ),
-                         ElevatedButton.icon(
+                          ElevatedButton.icon(
                             onPressed: novoUsuario,
                             icon: const Icon(Icons.add),
                             label: const Text('Novo usuário'),
@@ -470,7 +448,8 @@ Future<void> novoUsuario() async {
                         controller: _searchController,
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
-                          hintText: 'Pesquisar por nome',
+                          hintText:
+                              'Pesquisar por nome, e-mail, CPF, telefone ou cidade',
                           prefixIcon: const Icon(Icons.search),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -530,9 +509,12 @@ Future<void> novoUsuario() async {
                           child: DataTable(
                             columns: const [
                               DataColumn(label: Text('Nome')),
+                              DataColumn(label: Text('E-mail')),
                               DataColumn(label: Text('Tipo')),
+                              DataColumn(label: Text('CPF')),
+                              DataColumn(label: Text('Telefone')),
+                              DataColumn(label: Text('Cidade/UF')),
                               DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('ID')),
                               DataColumn(label: Text('Ações')),
                             ],
                             rows: usuariosFiltrados.map((usuario) {
@@ -544,19 +526,19 @@ Future<void> novoUsuario() async {
                                     Text(usuario['nome']?.toString() ?? ''),
                                   ),
                                   DataCell(
+                                    Text(usuario['email']?.toString() ?? ''),
+                                  ),
+                                  DataCell(
                                     _TipoBadge(
                                       tipo: usuario['tipo']?.toString() ?? '',
                                     ),
                                   ),
                                   DataCell(
-                                    _StatusBadge(ativo: ativo),
+                                    Text(usuario['cpf']?.toString() ?? '-'),
                                   ),
-                                  DataCell(
-                                    SelectableText(
-                                      usuario['id']?.toString() ?? '',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ),
+                                  DataCell(Text(telefonePrincipal(usuario))),
+                                  DataCell(Text(cidadeUf(usuario))),
+                                  DataCell(_StatusBadge(ativo: ativo)),
                                   DataCell(
                                     Row(
                                       children: [
@@ -599,6 +581,492 @@ Future<void> novoUsuario() async {
                 ),
               ],
             ),
+    );
+  }
+}
+
+typedef UsuarioSalvarCallback = Future<void> Function({
+  required String nome,
+  required String email,
+  required String tipo,
+  required bool ativo,
+  required String cpf,
+  required String telefone1,
+  required String telefone2,
+  required String cep,
+  required String endereco,
+  required String numero,
+  required String complemento,
+  required String bairro,
+  required String cidade,
+  required String uf,
+  required String? password,
+  required String? clienteId,
+});
+
+class UsuarioFormDialog extends StatefulWidget {
+  final Map<String, dynamic>? usuario;
+  final List<Map<String, dynamic>> clientes;
+  final String? clienteVinculadoId;
+  final UsuarioSalvarCallback onSalvar;
+
+  const UsuarioFormDialog({
+    super.key,
+    this.usuario,
+    required this.clientes,
+    this.clienteVinculadoId,
+    required this.onSalvar,
+  });
+
+  @override
+  State<UsuarioFormDialog> createState() => _UsuarioFormDialogState();
+}
+
+class _UsuarioFormDialogState extends State<UsuarioFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController nomeController;
+  late final TextEditingController emailController;
+  late final TextEditingController senhaController;
+  late final TextEditingController cpfController;
+  late final TextEditingController telefone1Controller;
+  late final TextEditingController telefone2Controller;
+  late final TextEditingController cepController;
+  late final TextEditingController enderecoController;
+  late final TextEditingController numeroController;
+  late final TextEditingController complementoController;
+  late final TextEditingController bairroController;
+  late final TextEditingController cidadeController;
+  late final TextEditingController ufController;
+
+  String tipo = 'colaborador';
+  String? clienteId;
+  bool ativo = true;
+  bool salvando = false;
+
+  bool get editando => widget.usuario != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final u = widget.usuario;
+
+    nomeController =
+        TextEditingController(text: u?['nome']?.toString() ?? '');
+    emailController =
+        TextEditingController(text: u?['email']?.toString() ?? '');
+    senhaController = TextEditingController();
+    cpfController = TextEditingController(text: u?['cpf']?.toString() ?? '');
+    telefone1Controller =
+        TextEditingController(text: u?['telefone_1']?.toString() ?? '');
+    telefone2Controller =
+        TextEditingController(text: u?['telefone_2']?.toString() ?? '');
+    cepController = TextEditingController(text: u?['cep']?.toString() ?? '');
+    enderecoController =
+        TextEditingController(text: u?['endereco']?.toString() ?? '');
+    numeroController =
+        TextEditingController(text: u?['numero']?.toString() ?? '');
+    complementoController =
+        TextEditingController(text: u?['complemento']?.toString() ?? '');
+    bairroController =
+        TextEditingController(text: u?['bairro']?.toString() ?? '');
+    cidadeController =
+        TextEditingController(text: u?['cidade']?.toString() ?? '');
+    ufController = TextEditingController(text: u?['uf']?.toString() ?? '');
+
+    tipo = u?['tipo']?.toString() ?? 'colaborador';
+    ativo = u?['ativo'] == true || u == null;
+    clienteId = widget.clienteVinculadoId;
+  }
+
+  @override
+  void dispose() {
+    nomeController.dispose();
+    emailController.dispose();
+    senhaController.dispose();
+    cpfController.dispose();
+    telefone1Controller.dispose();
+    telefone2Controller.dispose();
+    cepController.dispose();
+    enderecoController.dispose();
+    numeroController.dispose();
+    complementoController.dispose();
+    bairroController.dispose();
+    cidadeController.dispose();
+    ufController.dispose();
+    super.dispose();
+  }
+
+  Future<void> salvar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (tipo == 'cliente' && (clienteId == null || clienteId!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione o cliente vinculado.')),
+      );
+      return;
+    }
+
+    setState(() => salvando = true);
+
+    try {
+      await widget.onSalvar(
+        nome: nomeController.text.trim(),
+        email: emailController.text.trim(),
+        tipo: tipo,
+        ativo: ativo,
+        cpf: cpfController.text.trim(),
+        telefone1: telefone1Controller.text.trim(),
+        telefone2: telefone2Controller.text.trim(),
+        cep: cepController.text.trim(),
+        endereco: enderecoController.text.trim(),
+        numero: numeroController.text.trim(),
+        complemento: complementoController.text.trim(),
+        bairro: bairroController.text.trim(),
+        cidade: cidadeController.text.trim(),
+        uf: ufController.text.trim(),
+        password: editando ? null : senhaController.text.trim(),
+        clienteId: tipo == 'cliente' ? clienteId : null,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            editando
+                ? 'Usuário atualizado com sucesso.'
+                : 'Usuário criado com sucesso.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar usuário: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => salvando = false);
+    }
+  }
+
+  Widget campoTexto({
+    required TextEditingController controller,
+    required String label,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+      validator: validator,
+    );
+  }
+
+  Widget tituloSecao(String texto) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        texto,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF111827),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    editando ? 'Editar usuário' : 'Novo usuário',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  tituloSecao('Dados principais'),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: campoTexto(
+                          controller: nomeController,
+                          label: 'Nome',
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Informe o nome';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: cpfController,
+                          label: 'CPF',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: campoTexto(
+                          controller: emailController,
+                          label: 'E-mail',
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Informe o e-mail';
+                            }
+                            if (!value.contains('@')) {
+                              return 'E-mail inválido';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      if (!editando) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: campoTexto(
+                            controller: senhaController,
+                            label: 'Senha temporária',
+                            obscureText: true,
+                            validator: (value) {
+                              if (value == null || value.length < 6) {
+                                return 'Mínimo 6 caracteres';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: tipo,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'admin',
+                              child: Text('Admin'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'cliente',
+                              child: Text('Cliente'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'colaborador',
+                              child: Text('Colaborador'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
+
+                            setState(() {
+                              tipo = value;
+                              if (tipo != 'cliente') {
+                                clienteId = null;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Usuário ativo'),
+                          value: ativo,
+                          onChanged: (value) {
+                            setState(() => ativo = value);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (tipo == 'cliente') ...[
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: clienteId,
+                      decoration: const InputDecoration(
+                        labelText: 'Cliente vinculado',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: widget.clientes.map((cliente) {
+                        final nome =
+                            (cliente['nome'] ?? '').toString();
+                        final fantasia =
+                            (cliente['nome_fantasia'] ?? '').toString();
+                        final label = fantasia.isNotEmpty
+                            ? '$nome - $fantasia'
+                            : nome;
+
+                        return DropdownMenuItem<String>(
+                          value: cliente['id'].toString(),
+                          child: Text(label),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() => clienteId = value);
+                      },
+                      validator: (value) {
+                        if (tipo == 'cliente' &&
+                            (value == null || value.isEmpty)) {
+                          return 'Selecione o cliente';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+
+                  tituloSecao('Contato'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: campoTexto(
+                          controller: telefone1Controller,
+                          label: 'Telefone 1',
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: telefone2Controller,
+                          label: 'Telefone 2',
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  tituloSecao('Endereço'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: campoTexto(
+                          controller: cepController,
+                          label: 'CEP',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 3,
+                        child: campoTexto(
+                          controller: enderecoController,
+                          label: 'Endereço',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: numeroController,
+                          label: 'Número',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: campoTexto(
+                          controller: complementoController,
+                          label: 'Complemento',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: bairroController,
+                          label: 'Bairro',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: cidadeController,
+                          label: 'Cidade',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 100,
+                        child: campoTexto(
+                          controller: ufController,
+                          label: 'UF',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: salvando
+                            ? null
+                            : () => Navigator.pop(context, false),
+                        child: const Text('Cancelar'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: salvando ? null : salvar,
+                        child: salvando
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Salvar'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

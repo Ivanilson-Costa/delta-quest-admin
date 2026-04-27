@@ -140,11 +140,17 @@ class _QuestionariosPageState extends State<QuestionariosPage>
       if (query.isEmpty) return true;
 
       final tituloQuestionario = _tituloQuestionario(q).toLowerCase();
+      final subtituloQuestionario =
+          (q['subtitulo'] ?? '').toString().toLowerCase();
       final tituloPesquisa = _tituloPesquisa(q).toLowerCase();
+      final statusQuestionario =
+          (q['status'] ?? '').toString().toLowerCase();
 
       return tituloQuestionario.contains(query) ||
+          subtituloQuestionario.contains(query) ||
           tituloPesquisa.contains(query) ||
-          statusPesquisa.toLowerCase().contains(query);
+          statusPesquisa.toLowerCase().contains(query) ||
+          statusQuestionario.contains(query);
     }).toList();
   }
 
@@ -155,6 +161,58 @@ class _QuestionariosPageState extends State<QuestionariosPage>
     if (dt == null) return '-';
 
     return DateFormat('dd/MM/yyyy').format(dt);
+  }
+
+  String formatarStatusQuestionario(String status) {
+    switch (status) {
+      case 'rascunho':
+        return 'Rascunho';
+      case 'ativo':
+        return 'Ativo';
+      case 'finalizado':
+        return 'Finalizado';
+      default:
+        return status.isEmpty ? '-' : status;
+    }
+  }
+
+  Widget _buildStatusQuestionarioChip(String status) {
+    Color bg;
+    Color fg;
+
+    switch (status) {
+      case 'rascunho':
+        bg = const Color(0xFFF3F4F6);
+        fg = const Color(0xFF374151);
+        break;
+      case 'ativo':
+        bg = const Color(0xFFD1FAE5);
+        fg = const Color(0xFF065F46);
+        break;
+      case 'finalizado':
+        bg = const Color(0xFFDBEAFE);
+        fg = const Color(0xFF1D4ED8);
+        break;
+      default:
+        bg = const Color(0xFFE5E7EB);
+        fg = const Color(0xFF374151);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        formatarStatusQuestionario(status),
+        style: TextStyle(
+          color: fg,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+      ),
+    );
   }
 
   Widget _buildResumoCard({
@@ -282,7 +340,9 @@ class _QuestionariosPageState extends State<QuestionariosPage>
         ),
         columns: const [
           DataColumn(label: Text('Questionário')),
+          DataColumn(label: Text('Subtítulo')),
           DataColumn(label: Text('Pesquisa')),
+          DataColumn(label: Text('Status questionário')),
           DataColumn(label: Text('Status pesquisa')),
           DataColumn(label: Text('Início')),
           DataColumn(label: Text('Fim')),
@@ -293,6 +353,8 @@ class _QuestionariosPageState extends State<QuestionariosPage>
         rows: dados.map((q) {
           final questionarioId = (q['id'] ?? '').toString();
           final questionarioTitulo = (q['titulo'] ?? '').toString();
+          final questionarioSubtitulo = (q['subtitulo'] ?? '').toString();
+          final statusQuestionario = (q['status'] ?? '').toString();
           final pesquisaTitulo = _tituloPesquisa(q);
           final statusPesquisa = _statusPesquisa(q);
           final dataInicio = q['pesquisas']?['data_inicio'];
@@ -319,10 +381,21 @@ class _QuestionariosPageState extends State<QuestionariosPage>
               ),
               DataCell(
                 ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  child: Text(
+                    questionarioSubtitulo.isEmpty
+                        ? '-'
+                        : questionarioSubtitulo,
+                  ),
+                ),
+              ),
+              DataCell(
+                ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 220),
                   child: Text(pesquisaTitulo),
                 ),
               ),
+              DataCell(_buildStatusQuestionarioChip(statusQuestionario)),
               DataCell(_buildStatusPesquisaChip(statusPesquisa)),
               DataCell(Text(formatarData(dataInicio))),
               DataCell(Text(formatarData(dataFim))),
@@ -332,7 +405,7 @@ class _QuestionariosPageState extends State<QuestionariosPage>
                 Row(
                   children: [
                     IconButton(
-                      tooltip: 'Abrir perguntas',
+                      tooltip: 'Abrir editor',
                       onPressed: () {
                         context.go(
                           '/perguntas/$questionarioId',
@@ -447,7 +520,7 @@ class _QuestionariosPageState extends State<QuestionariosPage>
                               onChanged: (_) => setState(() {}),
                               decoration: InputDecoration(
                                 hintText:
-                                    'Buscar por questionário ou pesquisa',
+                                    'Buscar por questionário, subtítulo, pesquisa ou status',
                                 prefixIcon: const Icon(Icons.search),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -530,10 +603,12 @@ class _QuestionarioDialogState extends State<QuestionarioDialog> {
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController titulo = TextEditingController();
+  final TextEditingController subtitulo = TextEditingController();
   final TextEditingController descricao = TextEditingController();
 
   List<Map<String, dynamic>> pesquisas = [];
   String? pesquisaId;
+  String status = 'rascunho';
   bool loading = true;
   bool salvando = false;
 
@@ -544,7 +619,9 @@ class _QuestionarioDialogState extends State<QuestionarioDialog> {
     super.initState();
 
     titulo.text = widget.questionario?['titulo']?.toString() ?? '';
+    subtitulo.text = widget.questionario?['subtitulo']?.toString() ?? '';
     descricao.text = widget.questionario?['descricao']?.toString() ?? '';
+    status = widget.questionario?['status']?.toString() ?? 'rascunho';
     pesquisaId = widget.questionario?['pesquisa_id']?.toString();
 
     carregarPesquisas();
@@ -553,6 +630,7 @@ class _QuestionarioDialogState extends State<QuestionarioDialog> {
   @override
   void dispose() {
     titulo.dispose();
+    subtitulo.dispose();
     descricao.dispose();
     super.dispose();
   }
@@ -596,13 +674,17 @@ class _QuestionarioDialogState extends State<QuestionarioDialog> {
           id: widget.questionario!['id'].toString(),
           pesquisaId: pesquisaId!,
           titulo: titulo.text.trim(),
+          subtitulo: subtitulo.text.trim(),
           descricao: descricao.text.trim(),
+          status: status,
         );
       } else {
         await service.criar(
           pesquisaId: pesquisaId!,
           titulo: titulo.text.trim(),
+          subtitulo: subtitulo.text.trim(),
           descricao: descricao.text.trim(),
+          status: status,
         );
       }
 
@@ -637,7 +719,7 @@ class _QuestionarioDialogState extends State<QuestionarioDialog> {
 
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600),
+        constraints: const BoxConstraints(maxWidth: 680),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Form(
@@ -679,6 +761,37 @@ class _QuestionarioDialogState extends State<QuestionarioDialog> {
                   ),
                   validator: (v) =>
                       v == null || v.trim().isEmpty ? 'Informe o título' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: subtitulo,
+                  decoration: const InputDecoration(
+                    labelText: 'Subtítulo',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: status,
+                  decoration: const InputDecoration(
+                    labelText: 'Status do questionário',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'rascunho',
+                      child: Text('Rascunho'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'ativo',
+                      child: Text('Ativo'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'finalizado',
+                      child: Text('Finalizado'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => status = v ?? 'rascunho'),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

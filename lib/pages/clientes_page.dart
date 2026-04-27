@@ -82,18 +82,31 @@ class _ClientesPageState extends State<ClientesPage> {
 
     return clientes.where((c) {
       final nome = (c['nome'] ?? '').toString().toLowerCase();
+      final razaoSocial = (c['razao_social'] ?? '').toString().toLowerCase();
+      final nomeFantasia = (c['nome_fantasia'] ?? '').toString().toLowerCase();
+      final cpf = (c['cpf'] ?? '').toString().toLowerCase();
+      final cnpj = (c['cnpj'] ?? '').toString().toLowerCase();
       final email = (c['email'] ?? '').toString().toLowerCase();
       final plano = (c['plano'] ?? '').toString().toLowerCase();
       final responsavel =
           (c['responsavel_nome'] ?? '').toString().toLowerCase();
-
+      final telefone1 = (c['telefone_1'] ?? '').toString().toLowerCase();
+      final telefone2 = (c['telefone_2'] ?? '').toString().toLowerCase();
+      final cidade = (c['cidade'] ?? '').toString().toLowerCase();
       final statusCliente = (c['status'] ?? '').toString().toLowerCase();
       final statusPesquisa = _textoResumoStatusPesquisa(c).toLowerCase();
 
       return nome.contains(query) ||
+          razaoSocial.contains(query) ||
+          nomeFantasia.contains(query) ||
+          cpf.contains(query) ||
+          cnpj.contains(query) ||
           email.contains(query) ||
           plano.contains(query) ||
           responsavel.contains(query) ||
+          telefone1.contains(query) ||
+          telefone2.contains(query) ||
+          cidade.contains(query) ||
           statusCliente.contains(query) ||
           statusPesquisa.contains(query);
     }).toList();
@@ -134,13 +147,29 @@ class _ClientesPageState extends State<ClientesPage> {
   int get totalClientesAtivos =>
       clientes.where((c) => (c['status'] ?? '').toString() == 'ativo').length;
 
-  int get totalClientesInativosOuBloqueados => clientes
-      .where((c) => (c['status'] ?? '').toString() != 'ativo')
-      .length;
+  int get totalClientesInativosOuBloqueados =>
+      clientes.where((c) => (c['status'] ?? '').toString() != 'ativo').length;
 
-  int get totalClientesComPesquisaAtiva => clientes
-      .where((c) => _toInt(c['pesquisas_ativas']) > 0)
-      .length;
+  int get totalClientesComPesquisaAtiva =>
+      clientes.where((c) => _toInt(c['pesquisas_ativas']) > 0).length;
+
+  String documentoCliente(Map<String, dynamic> cliente) {
+    final cnpj = (cliente['cnpj'] ?? '').toString();
+    final cpf = (cliente['cpf'] ?? '').toString();
+
+    if (cnpj.isNotEmpty) return cnpj;
+    if (cpf.isNotEmpty) return cpf;
+    return '-';
+  }
+
+  String telefoneCliente(Map<String, dynamic> cliente) {
+    final telefone1 = (cliente['telefone_1'] ?? '').toString();
+    final telefoneAntigo = (cliente['telefone'] ?? '').toString();
+
+    if (telefone1.isNotEmpty) return telefone1;
+    if (telefoneAntigo.isNotEmpty) return telefoneAntigo;
+    return '-';
+  }
 
   String _textoResumoStatusPesquisa(Map<String, dynamic> cliente) {
     final total = _toInt(cliente['total_pesquisas']);
@@ -323,9 +352,7 @@ class _ClientesPageState extends State<ClientesPage> {
       userType: tipo,
       selectedIndex: 2,
       child: loading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -397,7 +424,7 @@ class _ClientesPageState extends State<ClientesPage> {
                               onChanged: (_) => setState(() {}),
                               decoration: InputDecoration(
                                 hintText:
-                                    'Buscar por nome, e-mail, plano, responsável ou status',
+                                    'Buscar por nome, documento, e-mail, telefone, cidade, plano ou responsável',
                                 prefixIcon: const Icon(Icons.search),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -434,8 +461,11 @@ class _ClientesPageState extends State<ClientesPage> {
                             ),
                             columns: const [
                               DataColumn(label: Text('Nome')),
+                              DataColumn(label: Text('Documento')),
                               DataColumn(label: Text('Responsável')),
                               DataColumn(label: Text('E-mail')),
+                              DataColumn(label: Text('Telefone')),
+                              DataColumn(label: Text('Cidade/UF')),
                               DataColumn(label: Text('Plano')),
                               DataColumn(label: Text('Status cliente')),
                               DataColumn(label: Text('Status pesquisas')),
@@ -447,12 +477,18 @@ class _ClientesPageState extends State<ClientesPage> {
                                   (cliente['status'] ?? 'ativo').toString();
                               final totalPesquisas =
                                   _toInt(cliente['total_pesquisas']);
+                              final cidade = (cliente['cidade'] ?? '').toString();
+                              final uf = (cliente['uf'] ?? '').toString();
+                              final cidadeUf = cidade.isEmpty && uf.isEmpty
+                                  ? '-'
+                                  : '$cidade${uf.isNotEmpty ? '/$uf' : ''}';
 
                               return DataRow(
                                 cells: [
                                   DataCell(
                                     Text((cliente['nome'] ?? '').toString()),
                                   ),
+                                  DataCell(Text(documentoCliente(cliente))),
                                   DataCell(
                                     Text(
                                       (cliente['responsavel_nome'] ?? '')
@@ -462,6 +498,8 @@ class _ClientesPageState extends State<ClientesPage> {
                                   DataCell(
                                     Text((cliente['email'] ?? '').toString()),
                                   ),
+                                  DataCell(Text(telefoneCliente(cliente))),
+                                  DataCell(Text(cidadeUf)),
                                   DataCell(
                                     Text((cliente['plano'] ?? '').toString()),
                                   ),
@@ -527,8 +565,7 @@ class CriarAcessoClienteDialog extends StatefulWidget {
       _CriarAcessoClienteDialogState();
 }
 
-class _CriarAcessoClienteDialogState
-    extends State<CriarAcessoClienteDialog> {
+class _CriarAcessoClienteDialogState extends State<CriarAcessoClienteDialog> {
   final _formKey = GlobalKey<FormState>();
   final _service = ClientAccessService();
 
@@ -693,10 +730,23 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
   final _service = ClientesService();
 
   late final TextEditingController nomeController;
+  late final TextEditingController razaoSocialController;
+  late final TextEditingController nomeFantasiaController;
+  late final TextEditingController cpfController;
+  late final TextEditingController cnpjController;
   late final TextEditingController planoController;
   late final TextEditingController emailController;
-  late final TextEditingController telefoneController;
+  late final TextEditingController telefone1Controller;
+  late final TextEditingController telefone2Controller;
   late final TextEditingController responsavelController;
+  late final TextEditingController responsavelCpfController;
+  late final TextEditingController cepController;
+  late final TextEditingController enderecoController;
+  late final TextEditingController numeroController;
+  late final TextEditingController complementoController;
+  late final TextEditingController bairroController;
+  late final TextEditingController cidadeController;
+  late final TextEditingController ufController;
   late final TextEditingController observacoesController;
 
   String status = 'ativo';
@@ -710,16 +760,53 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
 
     nomeController =
         TextEditingController(text: widget.cliente?['nome']?.toString() ?? '');
+    razaoSocialController = TextEditingController(
+      text: widget.cliente?['razao_social']?.toString() ?? '',
+    );
+    nomeFantasiaController = TextEditingController(
+      text: widget.cliente?['nome_fantasia']?.toString() ?? '',
+    );
+    cpfController =
+        TextEditingController(text: widget.cliente?['cpf']?.toString() ?? '');
+    cnpjController =
+        TextEditingController(text: widget.cliente?['cnpj']?.toString() ?? '');
     planoController =
         TextEditingController(text: widget.cliente?['plano']?.toString() ?? '');
     emailController =
         TextEditingController(text: widget.cliente?['email']?.toString() ?? '');
-    telefoneController = TextEditingController(
-      text: widget.cliente?['telefone']?.toString() ?? '',
+    telefone1Controller = TextEditingController(
+      text: widget.cliente?['telefone_1']?.toString() ??
+          widget.cliente?['telefone']?.toString() ??
+          '',
+    );
+    telefone2Controller = TextEditingController(
+      text: widget.cliente?['telefone_2']?.toString() ?? '',
     );
     responsavelController = TextEditingController(
       text: widget.cliente?['responsavel_nome']?.toString() ?? '',
     );
+    responsavelCpfController = TextEditingController(
+      text: widget.cliente?['responsavel_cpf']?.toString() ?? '',
+    );
+    cepController =
+        TextEditingController(text: widget.cliente?['cep']?.toString() ?? '');
+    enderecoController = TextEditingController(
+      text: widget.cliente?['endereco']?.toString() ?? '',
+    );
+    numeroController = TextEditingController(
+      text: widget.cliente?['numero']?.toString() ?? '',
+    );
+    complementoController = TextEditingController(
+      text: widget.cliente?['complemento']?.toString() ?? '',
+    );
+    bairroController = TextEditingController(
+      text: widget.cliente?['bairro']?.toString() ?? '',
+    );
+    cidadeController = TextEditingController(
+      text: widget.cliente?['cidade']?.toString() ?? '',
+    );
+    ufController =
+        TextEditingController(text: widget.cliente?['uf']?.toString() ?? '');
     observacoesController = TextEditingController(
       text: widget.cliente?['observacoes']?.toString() ?? '',
     );
@@ -730,10 +817,23 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
   @override
   void dispose() {
     nomeController.dispose();
+    razaoSocialController.dispose();
+    nomeFantasiaController.dispose();
+    cpfController.dispose();
+    cnpjController.dispose();
     planoController.dispose();
     emailController.dispose();
-    telefoneController.dispose();
+    telefone1Controller.dispose();
+    telefone2Controller.dispose();
     responsavelController.dispose();
+    responsavelCpfController.dispose();
+    cepController.dispose();
+    enderecoController.dispose();
+    numeroController.dispose();
+    complementoController.dispose();
+    bairroController.dispose();
+    cidadeController.dispose();
+    ufController.dispose();
     observacoesController.dispose();
     super.dispose();
   }
@@ -747,23 +847,49 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
       if (editando) {
         await _service.atualizarCliente(
           id: widget.cliente!['id'].toString(),
-          nome: nomeController.text,
-          plano: planoController.text,
-          email: emailController.text,
-          telefone: telefoneController.text,
-          responsavelNome: responsavelController.text,
+          nome: nomeController.text.trim(),
+          razaoSocial: razaoSocialController.text.trim(),
+          nomeFantasia: nomeFantasiaController.text.trim(),
+          cpf: cpfController.text.trim(),
+          cnpj: cnpjController.text.trim(),
+          plano: planoController.text.trim(),
+          email: emailController.text.trim(),
+          telefone1: telefone1Controller.text.trim(),
+          telefone2: telefone2Controller.text.trim(),
+          responsavelNome: responsavelController.text.trim(),
+          responsavelCpf: responsavelCpfController.text.trim(),
+          cep: cepController.text.trim(),
+          endereco: enderecoController.text.trim(),
+          numero: numeroController.text.trim(),
+          complemento: complementoController.text.trim(),
+          bairro: bairroController.text.trim(),
+          cidade: cidadeController.text.trim(),
+          uf: ufController.text.trim().toUpperCase(),
           status: status,
-          observacoes: observacoesController.text,
+          observacoes: observacoesController.text.trim(),
         );
       } else {
         await _service.criarCliente(
-          nome: nomeController.text,
-          plano: planoController.text,
-          email: emailController.text,
-          telefone: telefoneController.text,
-          responsavelNome: responsavelController.text,
+          nome: nomeController.text.trim(),
+          razaoSocial: razaoSocialController.text.trim(),
+          nomeFantasia: nomeFantasiaController.text.trim(),
+          cpf: cpfController.text.trim(),
+          cnpj: cnpjController.text.trim(),
+          plano: planoController.text.trim(),
+          email: emailController.text.trim(),
+          telefone1: telefone1Controller.text.trim(),
+          telefone2: telefone2Controller.text.trim(),
+          responsavelNome: responsavelController.text.trim(),
+          responsavelCpf: responsavelCpfController.text.trim(),
+          cep: cepController.text.trim(),
+          endereco: enderecoController.text.trim(),
+          numero: numeroController.text.trim(),
+          complemento: complementoController.text.trim(),
+          bairro: bairroController.text.trim(),
+          cidade: cidadeController.text.trim(),
+          uf: ufController.text.trim().toUpperCase(),
           status: status,
-          observacoes: observacoesController.text,
+          observacoes: observacoesController.text.trim(),
         );
       }
 
@@ -784,11 +910,44 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
     }
   }
 
+  Widget campoTexto({
+    required TextEditingController controller,
+    required String label,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+      validator: validator,
+    );
+  }
+
+  Widget tituloSecao(String texto) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        texto,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF111827),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
+        constraints: const BoxConstraints(maxWidth: 900),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Form(
@@ -804,13 +963,12 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  TextFormField(
+                  const SizedBox(height: 24),
+
+                  tituloSecao('Dados principais'),
+                  campoTexto(
                     controller: nomeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome do cliente',
-                      border: OutlineInputBorder(),
-                    ),
+                    label: 'Nome do cliente',
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Informe o nome do cliente';
@@ -822,22 +980,16 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
-                          controller: responsavelController,
-                          decoration: const InputDecoration(
-                            labelText: 'Responsável',
-                            border: OutlineInputBorder(),
-                          ),
+                        child: campoTexto(
+                          controller: razaoSocialController,
+                          label: 'Razão social',
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
-                          controller: planoController,
-                          decoration: const InputDecoration(
-                            labelText: 'Plano',
-                            border: OutlineInputBorder(),
-                          ),
+                        child: campoTexto(
+                          controller: nomeFantasiaController,
+                          label: 'Nome fantasia',
                         ),
                       ),
                     ],
@@ -846,27 +998,139 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
-                          controller: emailController,
-                          decoration: const InputDecoration(
-                            labelText: 'E-mail',
-                            border: OutlineInputBorder(),
-                          ),
+                        child: campoTexto(
+                          controller: cpfController,
+                          label: 'CPF',
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
-                          controller: telefoneController,
-                          decoration: const InputDecoration(
-                            labelText: 'Telefone',
-                            border: OutlineInputBorder(),
-                          ),
+                        child: campoTexto(
+                          controller: cnpjController,
+                          label: 'CNPJ',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: planoController,
+                          label: 'Plano',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  tituloSecao('Responsável e contato'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: campoTexto(
+                          controller: responsavelController,
+                          label: 'Responsável',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: responsavelCpfController,
+                          label: 'CPF do responsável',
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: campoTexto(
+                          controller: emailController,
+                          label: 'E-mail',
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: telefone1Controller,
+                          label: 'Telefone 1',
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: telefone2Controller,
+                          label: 'Telefone 2',
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  tituloSecao('Endereço'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: campoTexto(
+                          controller: cepController,
+                          label: 'CEP',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 3,
+                        child: campoTexto(
+                          controller: enderecoController,
+                          label: 'Endereço',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: numeroController,
+                          label: 'Número',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: campoTexto(
+                          controller: complementoController,
+                          label: 'Complemento',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: bairroController,
+                          label: 'Bairro',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: campoTexto(
+                          controller: cidadeController,
+                          label: 'Cidade',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 100,
+                        child: campoTexto(
+                          controller: ufController,
+                          label: 'UF',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  tituloSecao('Status e observações'),
                   DropdownButtonFormField<String>(
                     value: status,
                     decoration: const InputDecoration(
@@ -874,10 +1138,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(
-                        value: 'ativo',
-                        child: Text('Ativo'),
-                      ),
+                      DropdownMenuItem(value: 'ativo', child: Text('Ativo')),
                       DropdownMenuItem(
                         value: 'inativo',
                         child: Text('Inativo'),
@@ -894,15 +1155,13 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
+                  campoTexto(
                     controller: observacoesController,
+                    label: 'Observações',
                     maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'Observações',
-                      border: OutlineInputBorder(),
-                    ),
                   ),
                   const SizedBox(height: 24),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -919,7 +1178,8 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Text('Salvar'),
                       ),

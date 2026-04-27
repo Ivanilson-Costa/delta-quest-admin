@@ -14,11 +14,8 @@ class ClientesService {
         .select('id, cliente_id, status, deleted_at')
         .isFilter('deleted_at', null);
 
-    final List<Map<String, dynamic>> clientes =
-        List<Map<String, dynamic>>.from(clientesResponse);
-
-    final List<Map<String, dynamic>> pesquisas =
-        List<Map<String, dynamic>>.from(pesquisasResponse);
+    final clientes = List<Map<String, dynamic>>.from(clientesResponse);
+    final pesquisas = List<Map<String, dynamic>>.from(pesquisasResponse);
 
     final Map<String, List<Map<String, dynamic>>> pesquisasPorCliente = {};
 
@@ -34,53 +31,67 @@ class ClientesService {
       final clienteId = (cliente['id'] ?? '').toString();
       final pesquisasDoCliente = pesquisasPorCliente[clienteId] ?? [];
 
-      final totalPesquisas = pesquisasDoCliente.length;
-      final pesquisasAtivas = pesquisasDoCliente.where((p) {
-        final status = (p['status'] ?? '').toString();
-        return status == 'em_andamento' || status == 'planejada';
-      }).length;
-
-      final pesquisasConcluidas = pesquisasDoCliente.where((p) {
-        final status = (p['status'] ?? '').toString();
-        return status == 'concluida';
-      }).length;
-
-      final pesquisasPausadas = pesquisasDoCliente.where((p) {
-        final status = (p['status'] ?? '').toString();
-        return status == 'pausada';
-      }).length;
-
-      final pesquisasCanceladas = pesquisasDoCliente.where((p) {
-        final status = (p['status'] ?? '').toString();
-        return status == 'cancelada';
-      }).length;
-
       return {
         ...cliente,
-        'total_pesquisas': totalPesquisas,
-        'pesquisas_ativas': pesquisasAtivas,
-        'pesquisas_concluidas': pesquisasConcluidas,
-        'pesquisas_pausadas': pesquisasPausadas,
-        'pesquisas_canceladas': pesquisasCanceladas,
+        'total_pesquisas': pesquisasDoCliente.length,
+        'pesquisas_ativas': pesquisasDoCliente.where((p) {
+          final status = (p['status'] ?? '').toString();
+          return status == 'em_andamento' || status == 'planejada';
+        }).length,
+        'pesquisas_concluidas': pesquisasDoCliente.where((p) {
+          return (p['status'] ?? '').toString() == 'concluida';
+        }).length,
+        'pesquisas_pausadas': pesquisasDoCliente.where((p) {
+          return (p['status'] ?? '').toString() == 'pausada';
+        }).length,
+        'pesquisas_canceladas': pesquisasDoCliente.where((p) {
+          return (p['status'] ?? '').toString() == 'cancelada';
+        }).length,
       };
     }).toList();
   }
 
   Future<void> criarCliente({
     required String nome,
+    String? razaoSocial,
+    String? nomeFantasia,
+    String? cpf,
+    String? cnpj,
     String? plano,
     String? email,
-    String? telefone,
+    String? telefone1,
+    String? telefone2,
     String? responsavelNome,
+    String? responsavelCpf,
+    String? cep,
+    String? endereco,
+    String? numero,
+    String? complemento,
+    String? bairro,
+    String? cidade,
+    String? uf,
     String status = 'ativo',
     String? observacoes,
   }) async {
     await client.from('clientes').insert({
       'nome': nome.trim(),
+      'razao_social': _nullSeVazio(razaoSocial),
+      'nome_fantasia': _nullSeVazio(nomeFantasia),
+      'cpf': _nullSeVazio(cpf),
+      'cnpj': _nullSeVazio(cnpj),
       'plano': _nullSeVazio(plano),
       'email': _nullSeVazio(email),
-      'telefone': _nullSeVazio(telefone),
+      'telefone_1': _nullSeVazio(telefone1),
+      'telefone_2': _nullSeVazio(telefone2),
       'responsavel_nome': _nullSeVazio(responsavelNome),
+      'responsavel_cpf': _nullSeVazio(responsavelCpf),
+      'cep': _nullSeVazio(cep),
+      'endereco': _nullSeVazio(endereco),
+      'numero': _nullSeVazio(numero),
+      'complemento': _nullSeVazio(complemento),
+      'bairro': _nullSeVazio(bairro),
+      'cidade': _nullSeVazio(cidade),
+      'uf': _nullSeVazio(uf?.toUpperCase()),
       'status': status,
       'observacoes': _nullSeVazio(observacoes),
     });
@@ -89,19 +100,45 @@ class ClientesService {
   Future<void> atualizarCliente({
     required String id,
     required String nome,
+    String? razaoSocial,
+    String? nomeFantasia,
+    String? cpf,
+    String? cnpj,
     String? plano,
     String? email,
-    String? telefone,
+    String? telefone1,
+    String? telefone2,
     String? responsavelNome,
+    String? responsavelCpf,
+    String? cep,
+    String? endereco,
+    String? numero,
+    String? complemento,
+    String? bairro,
+    String? cidade,
+    String? uf,
     required String status,
     String? observacoes,
   }) async {
     await client.from('clientes').update({
       'nome': nome.trim(),
+      'razao_social': _nullSeVazio(razaoSocial),
+      'nome_fantasia': _nullSeVazio(nomeFantasia),
+      'cpf': _nullSeVazio(cpf),
+      'cnpj': _nullSeVazio(cnpj),
       'plano': _nullSeVazio(plano),
       'email': _nullSeVazio(email),
-      'telefone': _nullSeVazio(telefone),
+      'telefone_1': _nullSeVazio(telefone1),
+      'telefone_2': _nullSeVazio(telefone2),
       'responsavel_nome': _nullSeVazio(responsavelNome),
+      'responsavel_cpf': _nullSeVazio(responsavelCpf),
+      'cep': _nullSeVazio(cep),
+      'endereco': _nullSeVazio(endereco),
+      'numero': _nullSeVazio(numero),
+      'complemento': _nullSeVazio(complemento),
+      'bairro': _nullSeVazio(bairro),
+      'cidade': _nullSeVazio(cidade),
+      'uf': _nullSeVazio(uf?.toUpperCase()),
       'status': status,
       'observacoes': _nullSeVazio(observacoes),
       'updated_at': DateTime.now().toIso8601String(),
