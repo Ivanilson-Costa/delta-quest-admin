@@ -16,6 +16,24 @@ class ImportExcelService {
     'escala',
   ];
 
+
+int? _parseInteiro(dynamic valor) {
+  final texto = (valor ?? '').toString().trim();
+
+  if (texto.isEmpty) return null;
+
+  final direto = int.tryParse(texto);
+  if (direto != null) return direto;
+
+  final decimal = double.tryParse(
+    texto.replaceAll(',', '.'),
+  );
+
+  if (decimal != null) return decimal.toInt();
+
+  return null;
+}
+
   Future<void> importarPerguntas(String questionarioId) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -113,7 +131,7 @@ class ImportExcelService {
         );
       }
 
-      final int? ordem = int.tryParse(ordemTexto);
+final int? ordem = _parseInteiro(linha['ordem']);
       if (ordem == null) {
         throw Exception(
           'Linha $numeroLinha: o campo "ordem" deve ser numérico.',

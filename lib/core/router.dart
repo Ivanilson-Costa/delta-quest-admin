@@ -8,7 +8,11 @@ import '../pages/loading_page.dart';
 import '../pages/login_page.dart';
 import '../pages/perguntas_page.dart';
 import '../pages/pesquisas_page.dart';
+import '../pages/meu_perfil_page.dart';
 import '../pages/questionarios_page.dart';
+import '../pages/alterar_senha_page.dart';
+import '../pages/configuracoes_page.dart';
+import '../pages/usuarios_page.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/loading',
@@ -41,6 +45,23 @@ final GoRouter appRouter = GoRouter(
       path: '/questionarios',
       builder: (context, state) => const QuestionariosPage(),
     ),
+    GoRoute(
+  path: '/configuracoes',
+  builder: (context, state) => const ConfiguracoesPage(),
+),
+    GoRoute(
+  path: '/alterar-senha',
+  builder: (context, state) => const AlterarSenhaPage(),
+),
+    GoRoute(
+      
+      path: '/meu-perfil',
+      builder: (context, state) => const MeuPerfilPage(),
+    ),
+    GoRoute(
+  path: '/usuarios',
+  builder: (context, state) => const UsuariosPage(),
+),
     GoRoute(
   path: '/perguntas/:id',
   builder: (context, state) {

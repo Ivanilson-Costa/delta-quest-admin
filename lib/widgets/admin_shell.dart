@@ -25,13 +25,13 @@ class AdminShell extends StatelessWidget {
 
   final menuItems = [
   _MenuItem('Dashboard', Icons.dashboard_rounded, '/dashboard'),   // 0
-  _MenuItem('Usuários', Icons.people_alt_rounded, '/dashboard'),   // 1
+  _MenuItem('Usuários', Icons.people_alt_rounded, '/usuarios'),   // 1
   _MenuItem('Clientes', Icons.business_rounded, '/clientes'),      // 2
   _MenuItem('Pesquisas', Icons.assignment_rounded, '/pesquisas'),  // 3
   _MenuItem('Alocações', Icons.link_rounded, '/alocacoes'),        // 4
   _MenuItem('Questionários', Icons.quiz_rounded, '/questionarios'),// 5
   _MenuItem('Estatísticas', Icons.bar_chart_rounded, '/dashboard'),// 6
-  _MenuItem('Configurações', Icons.settings_rounded, '/dashboard'),// 7
+ //_MenuItem('Configurações', Icons.settings_rounded, '/dashboard'),// 7
 ];
 
     return Scaffold(
@@ -140,14 +140,29 @@ class AdminShell extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        onSelected: (value) async {
-                          if (value == 'logout') {
-                            await auth.logout();
-                            if (context.mounted) {
-                              context.go('/login');
-                            }
-                          }
-                        },
+                      onSelected: (value) async {
+  if (value == 'profile') {
+      debugPrint('Clicou em Meu perfil');
+
+    context.go('/meu-perfil');
+  }
+
+  if (value == 'password') {
+    context.go('/alterar-senha');
+  }
+
+  if (value == 'settings') {
+    context.go('/configuracoes');
+  }
+
+  if (value == 'logout') {
+    await auth.logout();
+
+    if (context.mounted) {
+      context.go('/login');
+    }
+  }
+},
                         itemBuilder: (context) => const [
                           PopupMenuItem(
                             value: 'profile',
