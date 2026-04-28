@@ -2,16 +2,17 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../pages/alocacoes_page.dart';
+import '../pages/alterar_senha_page.dart';
+import '../pages/cliente_dashboard_page.dart';
 import '../pages/clientes_page.dart';
+import '../pages/configuracoes_page.dart';
 import '../pages/dashboard_page.dart';
 import '../pages/loading_page.dart';
 import '../pages/login_page.dart';
+import '../pages/meu_perfil_page.dart';
 import '../pages/perguntas_page.dart';
 import '../pages/pesquisas_page.dart';
-import '../pages/meu_perfil_page.dart';
 import '../pages/questionarios_page.dart';
-import '../pages/alterar_senha_page.dart';
-import '../pages/configuracoes_page.dart';
 import '../pages/usuarios_page.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -62,6 +63,10 @@ final GoRouter appRouter = GoRouter(
   path: '/usuarios',
   builder: (context, state) => const UsuariosPage(),
 ),
+GoRoute(
+  path: '/cliente-dashboard',
+  builder: (context, state) => const ClienteDashboardPage(),
+),
     GoRoute(
   path: '/perguntas/:id',
   builder: (context, state) {
@@ -84,23 +89,18 @@ final GoRouter appRouter = GoRouter(
   },
 ),
   ],
-  redirect: (context, state) {
-    final session = Supabase.instance.client.auth.currentSession;
-    final isLogin = state.matchedLocation == '/login';
-    final isLoading = state.matchedLocation == '/loading';
+redirect: (context, state) {
+  final session = Supabase.instance.client.auth.currentSession;
+  final isLogin = state.matchedLocation == '/login';
 
-    if (isLoading) {
-      return session == null ? '/login' : '/dashboard';
-    }
+  if (session == null && !isLogin) {
+    return '/login';
+  }
 
-    if (session == null && !isLogin) {
-      return '/login';
-    }
+  if (session != null && isLogin) {
+    return '/loading';
+  }
 
-    if (session != null && isLogin) {
-      return '/dashboard';
-    }
-
-    return null;
-  },
+  return null;
+},
 );

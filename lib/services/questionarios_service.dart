@@ -3,6 +3,56 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class QuestionariosService {
   final SupabaseClient client = Supabase.instance.client;
 
+Future<Map<String, dynamic>> buscarDadosExportacao(String questionarioId) async {
+  final questionario = await client
+      .from('questionarios')
+      .select('''
+        id,
+        titulo,
+        subtitulo,
+        descricao,
+        status,
+        pesquisas (
+          id,
+          titulo,
+          status,
+          data_inicio,
+          data_fim,
+          clientes (
+            id,
+            nome,
+            razao_social,
+            nome_fantasia,
+            cnpj,
+            cpf
+          )
+        )
+      ''')
+      .eq('id', questionarioId)
+      .single();
+
+  final blocos = await client
+      .from('blocos_questionario')
+      .select()
+      .eq('questionario_id', questionarioId)
+      .isFilter('deleted_at', null)
+      .order('ordem', ascending: true);
+
+  final perguntas = await client
+      .from('perguntas')
+      .select()
+      .eq('questionario_id', questionarioId)
+      .isFilter('deleted_at', null)
+      .order('ordem', ascending: true);
+
+  return {
+    'questionario': questionario,
+    'blocos': List<Map<String, dynamic>>.from(blocos),
+    'perguntas': List<Map<String, dynamic>>.from(perguntas),
+  };
+}
+
+
   Future<List<Map<String, dynamic>>> listar() async {
     final response = await client
         .from('questionarios')

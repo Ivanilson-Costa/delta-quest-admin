@@ -453,96 +453,95 @@ class _ClientesPageState extends State<ClientesPage> {
                           child: Text('Nenhum cliente encontrado.'),
                         )
                       else
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              const Color(0xFFF3F4F6),
-                            ),
-                            columns: const [
-                              DataColumn(label: Text('Nome')),
-                              DataColumn(label: Text('Documento')),
-                              DataColumn(label: Text('Responsável')),
-                              DataColumn(label: Text('E-mail')),
-                              DataColumn(label: Text('Telefone')),
-                              DataColumn(label: Text('Cidade/UF')),
-                              DataColumn(label: Text('Plano')),
-                              DataColumn(label: Text('Status cliente')),
-                              DataColumn(label: Text('Status pesquisas')),
-                              DataColumn(label: Text('Qtd pesquisas')),
-                              DataColumn(label: Text('Ações')),
-                            ],
-                            rows: clientesFiltrados.map((cliente) {
-                              final status =
-                                  (cliente['status'] ?? 'ativo').toString();
-                              final totalPesquisas =
-                                  _toInt(cliente['total_pesquisas']);
-                              final cidade = (cliente['cidade'] ?? '').toString();
-                              final uf = (cliente['uf'] ?? '').toString();
-                              final cidadeUf = cidade.isEmpty && uf.isEmpty
-                                  ? '-'
-                                  : '$cidade${uf.isNotEmpty ? '/$uf' : ''}';
+                       SingleChildScrollView(
+  scrollDirection: Axis.horizontal,
+  child: ConstrainedBox(
+    constraints: const BoxConstraints(minWidth: 1600), // 👈 ajuste aqui
+    child: DataTable(
+      columnSpacing: 28,
+  horizontalMargin: 16,
+      headingRowColor: WidgetStateProperty.all(
+        const Color(0xFFF3F4F6),
+      ),
+      columns: const [
+        DataColumn(label: Text('Nome')),
+        DataColumn(label: Text('Documento')),
+        DataColumn(label: Text('Responsável')),
+        DataColumn(label: Text('E-mail')),
+        DataColumn(label: Text('Telefone')),
+        DataColumn(label: Text('Cidade/UF')),
+        DataColumn(label: Text('Plano')),
+        DataColumn(label: Text('Status cliente')),
+        DataColumn(label: Text('Status pesquisas')),
+        DataColumn(label: Text('Qtd pesquisas')),
+        DataColumn(
+  label: SizedBox(
+    width: 150,
+    child: Center(
+      child: Text('Ações'),
+    ),
+  ),
+),
+      ],
+      rows: clientesFiltrados.map((cliente) {
+        final status = (cliente['status'] ?? 'ativo').toString();
+        final totalPesquisas =
+            _toInt(cliente['total_pesquisas']);
+        final cidade = (cliente['cidade'] ?? '').toString();
+        final uf = (cliente['uf'] ?? '').toString();
+        final cidadeUf = cidade.isEmpty && uf.isEmpty
+            ? '-'
+            : '$cidade${uf.isNotEmpty ? '/$uf' : ''}';
 
-                              return DataRow(
-                                cells: [
-                                  DataCell(
-                                    Text((cliente['nome'] ?? '').toString()),
-                                  ),
-                                  DataCell(Text(documentoCliente(cliente))),
-                                  DataCell(
-                                    Text(
-                                      (cliente['responsavel_nome'] ?? '')
-                                          .toString(),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text((cliente['email'] ?? '').toString()),
-                                  ),
-                                  DataCell(Text(telefoneCliente(cliente))),
-                                  DataCell(Text(cidadeUf)),
-                                  DataCell(
-                                    Text((cliente['plano'] ?? '').toString()),
-                                  ),
-                                  DataCell(_buildClienteStatusChip(status)),
-                                  DataCell(_buildPesquisaStatusChip(cliente)),
-                                  DataCell(Text(totalPesquisas.toString())),
-                                  DataCell(
-                                    Row(
-                                      children: [
-                                        IconButton(
-                                          tooltip: 'Criar acesso',
-                                          onPressed: () =>
-                                              abrirCriarAcesso(cliente),
-                                          icon: const Icon(
-                                            Icons.person_add_alt_1_outlined,
-                                          ),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Editar',
-                                          onPressed: () =>
-                                              abrirFormulario(cliente: cliente),
-                                          icon: const Icon(Icons.edit_outlined),
-                                        ),
-                                        IconButton(
-                                          tooltip: status == 'ativo'
-                                              ? 'Inativar'
-                                              : 'Ativar',
-                                          onPressed: () =>
-                                              trocarStatus(cliente),
-                                          icon: Icon(
-                                            status == 'ativo'
-                                                ? Icons.toggle_off_outlined
-                                                : Icons.toggle_on_outlined,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
-                        ),
+        return DataRow(
+          cells: [
+            DataCell(Text((cliente['nome'] ?? '').toString())),
+            DataCell(Text(documentoCliente(cliente))),
+            DataCell(Text(
+              (cliente['responsavel_nome'] ?? '').toString(),
+            )),
+            DataCell(Text((cliente['email'] ?? '').toString())),
+            DataCell(Text(telefoneCliente(cliente))),
+            DataCell(Text(cidadeUf)),
+            DataCell(Text((cliente['plano'] ?? '').toString())),
+            DataCell(_buildClienteStatusChip(status)),
+            DataCell(_buildPesquisaStatusChip(cliente)),
+            DataCell(Text(totalPesquisas.toString())),
+DataCell(
+  SizedBox(
+    width: 150,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        IconButton(
+          tooltip: 'Criar acesso',
+          onPressed: () => abrirCriarAcesso(cliente),
+          icon: const Icon(Icons.person_add_alt_1_outlined),
+        ),
+        IconButton(
+          tooltip: 'Editar',
+          onPressed: () => abrirFormulario(cliente: cliente),
+          icon: const Icon(Icons.edit_outlined),
+        ),
+        IconButton(
+          tooltip: status == 'ativo' ? 'Inativar' : 'Ativar',
+          onPressed: () => trocarStatus(cliente),
+          icon: Icon(
+            status == 'ativo'
+                ? Icons.toggle_off_outlined
+                : Icons.toggle_on_outlined,
+          ),
+        ),
+      ],
+    ),
+  ),
+),
+          ],
+        );
+      }).toList(),
+    ),
+  ),
+),
                     ],
                   ),
                 ),

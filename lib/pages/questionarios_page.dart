@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-
+import 'package:flutter/services.dart' show rootBundle;
 import '../services/questionarios_service.dart';
 import '../services/pesquisas_service.dart';
 import '../services/profile_service.dart';
@@ -67,79 +68,247 @@ class _QuestionariosPageState extends State<QuestionariosPage>
     }
   }
 
-  Future<void> exportarPDF(Map<String, dynamic> questionario) async {
+Future<void> exportarPDF(Map<String, dynamic> questionarioResumo) async {
+  try {
+    final dados = await service.buscarDadosExportacao(
+      questionarioResumo['id'].toString(),
+    );
+
+    final logoBytes =
+      (await rootBundle.load('assets/images/logo_delta_quest.png'))
+          .buffer
+          .asUint8List();
+
+    final logo = pw.MemoryImage(logoBytes); 
+    final questionario = dados['questionario'] as Map<String, dynamic>;
+    final blocos = dados['blocos'] as List<Map<String, dynamic>>;
+    final perguntas = dados['perguntas'] as List<Map<String, dynamic>>;
+
+    final pesquisa = questionario['pesquisas'] as Map<String, dynamic>?;
+    final cliente = pesquisa?['clientes'] as Map<String, dynamic>?;
+
     final pdf = pw.Document();
 
     final titulo = (questionario['titulo'] ?? '').toString();
     final subtitulo = (questionario['subtitulo'] ?? '').toString();
     final descricao = (questionario['descricao'] ?? '').toString();
-    final statusQuestionario = (questionario['status'] ?? '').toString();
-    final pesquisaTitulo = _tituloPesquisa(questionario);
-    final statusPesquisa = _statusPesquisa(questionario);
-    final dataInicio = formatarData(questionario['pesquisas']?['data_inicio']);
-    final dataFim = formatarData(questionario['pesquisas']?['data_fim']);
-    final perguntasCount = (questionario['perguntas_count'] ?? 0).toString();
-    final dataEmissao = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+
+    final pesquisaTitulo = (pesquisa?['titulo'] ?? '').toString();
+    final clienteNome = (cliente?['nome'] ??
+            cliente?['razao_social'] ??
+            cliente?['nome_fantasia'] ??
+            'Cliente não informado')
+        .toString();
+
+    final data = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+
+    List<Map<String, dynamic>> perguntasDoBloco(String? blocoId) {
+      return perguntas.where((p) {
+        return p['bloco_id']?.toString() == blocoId;
+      }).toList();
+    }
+
+    String tipoLabel(String tipo) {
+      switch (tipo) {
+        case 'likert_1_5':
+          return 'Likert (1 a 5)';
+        case 'likert_1_10':
+          return 'Likert (1 a 10)';
+        case 'multipla':
+          return 'Múltipla escolha';
+        case 'unica':
+          return 'Escolha única';
+        default:
+          return tipo;
+      }
+    }
+
+    pw.Widget perguntaWidget(Map<String, dynamic> p) {
+      return pw.Container(
+        margin: const pw.EdgeInsets.only(bottom: 10),
+        padding: const pw.EdgeInsets.all(10),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(width: 0.5, color: PdfColors.grey300),
+          borderRadius: pw.BorderRadius.circular(6),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              '${p['codigo'] ?? ''} ${p['texto']}',
+              style: pw.TextStyle(
+                fontSize: 11,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text('Tipo: ${tipoLabel(p['tipo'])}'),
+            pw.Text('Obrigatória: ${p['obrigatoria'] == true ? 'Sim' : 'Não'}'),
+
+            if (p['opcoes'] != null) ...[
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'Opções:',
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: (p['opcoes'] as List)
+                    .map((o) => pw.Text('- ${o['label'] ?? o['valor']}'))
+                    .toList(),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
 
     pdf.addPage(
       pw.MultiPage(
-        build: (context) => [
+        margin: const pw.EdgeInsets.all(32),
+
+      header: (context) => pw.Container(
+  padding: const pw.EdgeInsets.only(bottom: 8),
+  decoration: pw.BoxDecoration(
+    border: pw.Border(
+      bottom: pw.BorderSide(width: 1, color: PdfColors.grey),
+    ),
+  ),
+  child: pw.Row(
+    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    children: [
+      pw.Row(
+        children: [
+          pw.Image(logo, width: 40),
+          pw.SizedBox(width: 10),
           pw.Text(
             'DELTA QUEST IT',
-            style: pw.TextStyle(
-              fontSize: 24,
-              fontWeight: pw.FontWeight.bold,
-            ),
-          ),
-          pw.SizedBox(height: 6),
-          pw.Text(
-            'Instrumento de Pesquisa / Questionário',
             style: pw.TextStyle(
               fontSize: 16,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
-          pw.SizedBox(height: 18),
-          pw.Divider(),
-          pw.SizedBox(height: 12),
-          pw.Text('Questionário: $titulo'),
-          if (subtitulo.isNotEmpty) pw.Text('Subtítulo: $subtitulo'),
-          if (descricao.isNotEmpty) pw.Text('Descrição: $descricao'),
-          pw.Text('Pesquisa: $pesquisaTitulo'),
-          pw.Text('Status do questionário: ${formatarStatusQuestionario(statusQuestionario)}'),
-          pw.Text('Status da pesquisa: $statusPesquisa'),
-          pw.Text('Início da pesquisa: $dataInicio'),
-          pw.Text('Fim da pesquisa: $dataFim'),
-          pw.Text('Quantidade de perguntas: $perguntasCount'),
-          pw.Text('Data de emissão: $dataEmissao'),
-          pw.SizedBox(height: 20),
-          pw.Divider(),
-          pw.SizedBox(height: 12),
-          pw.Text(
-            'Observação',
-            style: pw.TextStyle(
-              fontSize: 14,
-              fontWeight: pw.FontWeight.bold,
-            ),
-          ),
-          pw.Text(
-            'Este documento representa o cadastro do questionário no sistema Delta Quest IT. '
-            'A próxima etapa poderá incluir a exportação detalhada dos blocos, perguntas, opções e regras de pulo.',
-          ),
-          pw.SizedBox(height: 30),
-          pw.Divider(),
-          pw.Text(
-            'Gerado automaticamente pelo sistema Delta Quest IT.',
-            style: const pw.TextStyle(fontSize: 10),
-          ),
         ],
+      ),
+      pw.Text(
+        'Página ${context.pageNumber}',
+        style: const pw.TextStyle(fontSize: 10),
+      ),
+    ],
+  ),
+),
+
+        footer: (context) => pw.Container(
+          margin: const pw.EdgeInsets.only(top: 10),
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            'Gerado em $data',
+            style: const pw.TextStyle(fontSize: 9),
+          ),
+        ),
+
+        build: (context) {
+          final widgets = <pw.Widget>[];
+
+          // 📌 Cabeçalho principal
+          widgets.add(
+            pw.Text(
+              titulo,
+              style: pw.TextStyle(
+                fontSize: 20,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          );
+
+          if (subtitulo.isNotEmpty) {
+            widgets.add(
+              pw.Text(
+                subtitulo,
+                style: pw.TextStyle(fontSize: 12),
+              ),
+            );
+          }
+
+          widgets.add(pw.SizedBox(height: 10));
+
+          widgets.add(
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: pw.BorderRadius.circular(6),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Cliente: $clienteNome'),
+                  pw.Text('Pesquisa: $pesquisaTitulo'),
+                  if (descricao.isNotEmpty) pw.Text('Descrição: $descricao'),
+                ],
+              ),
+            ),
+          );
+
+          widgets.add(pw.SizedBox(height: 20));
+
+          // 📌 Blocos
+          for (final bloco in blocos) {
+            final perguntasBloco = perguntasDoBloco(bloco['id'].toString());
+
+            widgets.add(
+              pw.Container(
+                margin: const pw.EdgeInsets.only(bottom: 10),
+                child: pw.Text(
+                  bloco['titulo'] ?? '',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.blue800,
+                  ),
+                ),
+              ),
+            );
+
+            for (final p in perguntasBloco) {
+              widgets.add(perguntaWidget(p));
+            }
+          }
+
+          // 📌 Perguntas sem bloco
+          final semBloco = perguntasDoBloco(null);
+
+          if (semBloco.isNotEmpty) {
+            widgets.add(
+              pw.Text(
+                'Outras perguntas',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+
+            for (final p in semBloco) {
+              widgets.add(perguntaWidget(p));
+            }
+          }
+
+          return widgets;
+        },
       ),
     );
 
     await Printing.layoutPdf(
+      name: 'questionario_$titulo.pdf',
       onLayout: (format) async => pdf.save(),
     );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erro ao gerar PDF: $e')),
+    );
   }
+}
 
   Future<void> exportarDOCX(Map<String, dynamic> questionario) async {
     ScaffoldMessenger.of(context).showSnackBar(

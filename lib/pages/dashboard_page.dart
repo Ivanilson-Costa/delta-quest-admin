@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:go_router/go_router.dart';
 import '../services/profile_service.dart';
 import '../widgets/admin_shell.dart';
 
@@ -22,15 +22,28 @@ class _DashboardPageState extends State<DashboardPage> {
     loadProfile();
   }
 
-  Future<void> loadProfile() async {
-    final data = await profileService.getProfile();
-    if (!mounted) return;
+Future<void> loadProfile() async {
+  final data = await profileService.getProfile();
+  if (!mounted) return;
 
-    setState(() {
-      profile = data;
-      loading = false;
-    });
+  final tipo = (data?['tipo'] ?? '').toString();
+
+  // 🔴 BLOQUEIO DO ADMIN PARA CLIENTE
+  if (tipo == 'cliente') {
+    context.go('/cliente-dashboard');
+    return;
   }
+
+  if (tipo == 'colaborador') {
+    context.go('/colaborador-dashboard');
+    return;
+  }
+
+  setState(() {
+    profile = data;
+    loading = false;
+  });
+}
 
   @override
   Widget build(BuildContext context) {
